@@ -1,6 +1,7 @@
 package app.crawler
 
 import java.io.StringReader
+import java.net.URLEncoder
 import scala.math._
 import scala.xml.{ NodeSeq, Elem, Node, Text }
 import scala.xml.parsing.NoBindingFactoryAdapter
@@ -49,6 +50,8 @@ object Main extends App {
   // list for data
   type Data = (Int, String, Node, Double) // (ID, URL, HtmlNode, Point)
   val dataList = new ListBuffer[Data]
+  // application id of yahoo apis
+  val apiId = "1lrHQU.xg66Lo7X6gX8LGae3czjpWQlO90e5acikqxEUQDnsrtMlILwHWDXHsPr0jAE-"
 
   /**
    * main function
@@ -160,5 +163,28 @@ object Main extends App {
     pointList.reduce((a, b) => a + b)
   }
 
+  /**
+   * search about words with yahoo api
+   */
+  type searchResultUnit = (String, String, String) // (Title, Summary, URL)
+  def searchWord(word: String, page: Int = 1): ListBuffer[searchResultUnit] = {
+    val query = URLEncoder.encode(word, "utf-8")
+    val url = "http://search.yahooapis.jp/WebSearchService/V2/webSearch" +
+      "?appid=" + apiId + // apiID
+      "&query=" + query + // 検索文字列
+      "&type=all" + // allだと全クエリを含む検索結果、anyだと一部を含む
+      "&results=20" + // 結果の数。20がマックス
+      "&start=" + (page * 20 + 1) + // 結果の先頭位置
+      "&format=html" // 検索するファイルの種類
+    val node = getHtmlNode(url)
+    val results = new ListBuffer[searchResultUnit]
+    for (i <- node \\ "result") {
+      results += Tuple3(
+        removeTags(i \\ "title" toString),
+        removeTags(i \\ "summary" toString),
+        removeTags(i \\ "url" toString))
+    }
+    results
+  }
 }
 
