@@ -47,7 +47,7 @@ object Main extends App {
   val targetQueue = new ListBuffer[String]
   targetQueue += startTarget
   // list for data
-  type Data = (String, Node, Double) // (URL, HtmlNode, Point)
+  type Data = (Int, String, Node, Double) // (ID, URL, HtmlNode, Point)
   val dataList = new ListBuffer[Data]
 
   /**
@@ -104,7 +104,7 @@ object Main extends App {
         })
         // get point and show
         val point = getPoint(node.toString)
-        dataList += Tuple3(target, node, point)
+        dataList += Tuple4(dataList.length, target, node, point)
         println("  -> point: " + point)
       }
       println()
@@ -114,8 +114,10 @@ object Main extends App {
     //   println("[%04d] %s" format (i, targetQueue(i)))
     // }
     // targetQueue.foreach(e => println(e))
-    for (i <- 0 to dataList.length - 1) {
-      println("[%04d] (" + dataList(i)._3 + ") %s" format (i, dataList(i)._1))
+	// sort by point
+	val sortedList = dataList.toSeq.sortWith(_._4 > _._4)
+    for (i <- 0 to sortedList.length - 1) {
+      println("[%04d] (" + sortedList(i)._4 + ") %s" format (sortedList(i)._1, sortedList(i)._2))
     }
   }
   main()
