@@ -3,7 +3,7 @@ package app.crawler
 import java.io.StringReader
 import scala.xml.{ NodeSeq, Elem, Node, Text }
 import scala.xml.parsing.NoBindingFactoryAdapter
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ ListBuffer, HashMap }
 import scala.util.control.Breaks
 import dispatch._
 import nu.validator.htmlparser.sax.HtmlParser
@@ -12,18 +12,23 @@ import org.xml.sax.InputSource
 
 import org.scalaquery.session.Database
 import org.scalaquery.session.Database.threadLocalSession
-  
+
 /**
  * Main object
  */
 object Main extends App {
 
   // search words
-  val words = ListBuffer(
-    """(c|C)lojure""",
-    """(XML|Xml|xml)""",
-    """(パース|parse|解析|解釈)""",
-    """(機械学習|(M|m)achine\s?study)""")
+  val searchWords = HashMap(
+    """(c|C)lojure""" -> ListBuffer(
+      """(XML|Xml|xml)""",
+      """(パース|parse|解析|解釈)""",
+      """(機械学習|(M|m)achine\s?study)"""
+	),
+	"""(s|S)cala""" -> ListBuffer(
+	  """((c|C)ollection|コレクション)"""
+	)
+  )
   // search start url  "http://www.wasedasai.net/2012/"
   // val startTarget = "http://clojure.org/"
   var startTarget = "http://d.hatena.ne.jp/tototoshi/20111230/1325239770"
