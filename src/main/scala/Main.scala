@@ -1,6 +1,7 @@
 package app.crawler
 
 import java.io.StringReader
+import scala.math._
 import scala.xml.{ NodeSeq, Elem, Node, Text }
 import scala.xml.parsing.NoBindingFactoryAdapter
 import scala.collection.mutable.{ ListBuffer, HashMap }
@@ -46,7 +47,8 @@ object Main extends App {
   val targetQueue = new ListBuffer[String]
   targetQueue += startTarget
   // list for data
-  // val
+  type Data = (String, Node, Double) // (URL, HtmlNode, Point)
+  val dataList = new ListBuffer[Data]
 
   /**
    * main function
@@ -100,14 +102,21 @@ object Main extends App {
             targetQueue += url
           }
         })
+        // get point and show
+        val point = getPoint(node.toString)
+        dataList += Tuple3(target, node, point)
+        println("  -> point: " + point)
       }
       println()
       queueCounter += 1
     }
-    for (i <- 0 to targetQueue.length - 1) {
-      println("[%04d] %s" format (i, targetQueue(i)))
-    }
+    // for (i <- 0 to targetQueue.length - 1) {
+    //   println("[%04d] %s" format (i, targetQueue(i)))
+    // }
     // targetQueue.foreach(e => println(e))
+    for (i <- 0 to dataList.length - 1) {
+      println("[%04d] (" + dataList(i)._3 + ") %s" format (i, dataList(i)._1))
+    }
   }
   main()
 
@@ -132,5 +141,18 @@ object Main extends App {
     hp.parse(new InputSource(new StringReader(str)))
     saxer.rootElem
   }
+
+  /**
+   * get point from text match
+   */
+  def getPoint(text: String): Double = {
+    val pointList = for ((root, words) <- searchWords; w <- words) yield {
+      val rootLength = root.r.findAllIn(text).toList.length
+      val matchLength = w.r.findAllIn(text).toList.length
+      if (matchLength * rootLength > 0) 1 else 0
+    }
+    pointList.reduce((a, b) => a + b)
+  }
+
 }
 
