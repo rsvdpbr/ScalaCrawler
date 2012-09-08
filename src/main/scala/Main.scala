@@ -80,7 +80,8 @@ object Main extends App {
         try {
           val title: String = {
             val original = (node \\ "title")(0) toString ()
-            """</?(title|TITLE)>""".r.replaceAllIn(original, "")
+            removeTags(original)
+            // """</?(title|TITLE)>""".r.replaceAllIn(original, "")
           }
           println("  -> title : " + title)
         } catch {
@@ -138,6 +139,13 @@ object Main extends App {
     hp.setContentHandler(saxer)
     hp.parse(new InputSource(new StringReader(str)))
     saxer.rootElem
+  }
+
+  /**
+   * remove html tags
+   */
+  def removeTags(str: String): String = {
+    """<.+?>""".r.replaceAllIn(str, "")
   }
 
   /**
