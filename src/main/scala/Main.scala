@@ -22,33 +22,50 @@ object Main extends App {
 
   // search words
   val searchWords = HashMap(
+    """機械学習""" -> ListBuffer(
+      """(機械学習|(m|M)achine (l|L)earning)""",
+      """(入門|(t|T)utorial)""",
+      """(文系|分かる)""",
+      """(プログラ(ム|ミング)|(p|P)rogram(ing)?)""",
+      """(自然言語)""",
+      """(教師)""",
+      """(l|L)isp""",
+      """(c|C)lojure""",
+      """(p|P)ython"""),
+    """(l|L)isp""" -> ListBuffer(
+      """(入門|(t|T)utorial)""",
+      """(S式|S ?(e|E)xpression)""",
+      """(データベース|(d|D)ata(b|B)ase)""",
+      """(人工知能|AI)""",
+      """(末尾再帰|(t|T)ail (r|R)ecursion)""",
+      """(パース|解析|解釈|parse)""",
+      """(自然言語)""",
+      """(サンプル|(s|S)ample)""",
+      """(機械学習|(m|M)achine (l|L)earning)"""),
     """(c|C)lojure""" -> ListBuffer(
+      """(入門)""",
+      """(再帰|recursive)""",
+      """(末尾再帰|(t|T)ail (r|R)ecursion)""",
+      """(DSL|(d|D)omain( |-)?(s|S)pecific (l|L)anguage|ドメイン固有言語)""",
       """(XML|Xml|xml)""",
-      """(パース|parse|解析|解釈)""",
-      """(機械学習|(M|m)achine\s?study)"""
-	),
-	"""(s|S)cala""" -> ListBuffer(
-	  """((c|C)ollection|コレクション)"""
-	)
-  )
-  // search start url  "http://www.wasedasai.net/2012/"
-  // val startTarget = "http://clojure.org/"
-  var startTarget = "http://d.hatena.ne.jp/tototoshi/20111230/1325239770"
+      """(パース|解析|解釈|parse)""",
+      """(自然言語)""",
+      """(機械学習|(m|M)achine (l|L)earning)"""))
+  // the word to call yahoo search api with
+  val startWords = "機械学習"
   // step
-  val step = 1000
+  var step = 2000
   // filtering regular expression for a tag
   val aRegExp = """^https?://.*$"""
   val aRegExpExclude = """^(javascript:|mailto:|#).*$"""
 
   // list for caching url
   val urlCache = new ListBuffer[String]
-  urlCache += startTarget
   // queque for url
   var queueCounter = 0
   val targetQueue = new ListBuffer[String]
-  targetQueue += startTarget
   // list for data
-  type Data = (Int, String, Node, Double) // (ID, URL, HtmlNode, Point)
+  type Data = (Int, String, String, Node, Double) // (ID, URL, Title, HtmlNode, Point)
   val dataList = new ListBuffer[Data]
   // application id of yahoo apis
   val apiId = "1lrHQU.xg66Lo7X6gX8LGae3czjpWQlO90e5acikqxEUQDnsrtMlILwHWDXHsPr0jAE-"
@@ -57,6 +74,12 @@ object Main extends App {
    * main function
    */
   def main(): Unit = {
+    // set urls
+    searchWord(startWords).foreach(n => {
+      urlCache += n._3
+      targetQueue += n._3
+    })
+    // main while loop
     val mycontinue = new Breaks()
     import mycontinue.{ break => continue, breakable => continuable }
     while (queueCounter < step) {
@@ -66,7 +89,7 @@ object Main extends App {
           targetQueue(queueCounter)
         } catch {
           case e => {
-            println("\n" + e.toString)
+            println("\n[END OF QUEUE] " + e.toString)
             queueCounter = step
             continue
             null
@@ -77,47 +100,52 @@ object Main extends App {
         val node: Node = try {
           getHtmlNode(target)
         } catch {
-          case e => println("[ERROR]" + e.toString); continue; null
+          case e => {
+            println("[ERROR] " + e.toString.split("\n")(0))
+            step += 1
+            continue
+            null
+          }
         }
         // print page title
-        try {
-          val title: String = {
-            val original = (node \\ "title")(0) toString ()
-            removeTags(original)
-            // """</?(title|TITLE)>""".r.replaceAllIn(original, "")
-          }
-          println("  -> title : " + title)
+        val title: String = try {
+          val original = (node \\ "title")(0) toString ()
+          removeTags(original)
         } catch {
-          case e => println("[ERROR] Not fond title tag : " + e.toString)
+          case e => "[ERROR] Not fond title tag"
         }
-        // get list of a tag from html
-        var aTag = {
-          val originalList = node \\ "a"
-          val filtering = originalList filter (_ \ "@href" toString () matches aRegExp)
-          filtering filterNot (_ \ "@href" toString () matches aRegExpExclude)
-        }
-        aTag.foreach(n => {
-          val url = n \ "@href" toString ()
-          if (urlCache.contains(url)) {
-            println("    -> Already cached : " + url)
-          } else {
-            println("    -> " + url)
-            urlCache += url
-            targetQueue += url
-          }
-        })
+        println("  -> title : " + title)
         // get point and show
         val point = getPoint(node.toString)
-        dataList += Tuple4(dataList.length, target, node, point)
+        dataList += Tuple5(dataList.length, target, title, node, point)
         println("  -> point: " + point)
+        // get list of a tag from html if point is more than 0
+        if (point > 0) {
+          var aTag = {
+            val originalList = node \\ "a"
+            val filtering = originalList filter (_ \ "@href" toString () matches aRegExp)
+            filtering filterNot (_ \ "@href" toString () matches aRegExpExclude)
+          }
+          aTag.foreach(n => {
+            val url = removeHash(n \ "@href" toString ())
+            if (urlCache.contains(url)) {
+              println("    -> Already cached : " + url)
+            } else {
+              println("    -> " + url)
+              urlCache += url
+              targetQueue += url
+            }
+          })
+        }
       }
       println()
       queueCounter += 1
     }
     // sort by point
-    val sortedList = dataList.toSeq.sortWith(_._4 > _._4)
+    val sortedList = dataList.toSeq.sortWith(_._5 > _._5)
     for (i <- 0 to sortedList.length - 1) {
-      println("[%04d] (" + sortedList(i)._4 + ") %s" format (sortedList(i)._1, sortedList(i)._2))
+      println("[%04d] (" + sortedList(i)._5 + ") %s" format (sortedList(i)._1, sortedList(i)._2))
+      println("    -> " + sortedList(i)._3)
     }
   }
   main()
@@ -142,6 +170,13 @@ object Main extends App {
     hp.setContentHandler(saxer)
     hp.parse(new InputSource(new StringReader(str)))
     saxer.rootElem
+  }
+
+  /**
+   * remove hash
+   */
+  def removeHash(str: String): String = {
+    """#.?""".r.replaceAllIn(str, "")
   }
 
   /**
@@ -182,7 +217,7 @@ object Main extends App {
       results += Tuple3(
         removeTags(i \\ "title" toString),
         removeTags(i \\ "summary" toString),
-        removeTags(i \\ "url" toString))
+        removeTags(i \\ "clickurl" toString))
     }
     results
   }
