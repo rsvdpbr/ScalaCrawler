@@ -203,6 +203,7 @@ object Main extends App {
    */
   type searchResultUnit = (String, String, String) // (Title, Summary, URL)
   def searchWord(word: String, page: Int = 1): ListBuffer[searchResultUnit] = {
+    // set variables and import break library
     val query = URLEncoder.encode(word, "utf-8")
     val url = "http://search.yahooapis.jp/WebSearchService/V2/webSearch" +
       "?appid=" + apiId + // apiID
@@ -211,13 +212,29 @@ object Main extends App {
       "&results=20" + // 結果の数。20がマックス
       "&start=" + (page * 20 + 1) + // 結果の先頭位置
       "&format=html" // 検索するファイルの種類
-    val node = getHtmlNode(url)
+    // request for search result until results returned or 20 requests posted
+    var node: Node = null
+    var counter = 20;
+    while (counter > 0) {
+      try {
+        node = getHtmlNode(url)
+        counter = 0
+      } catch {
+        case e => {
+          println("connection error: " + e.toString)
+        }
+      }
+      counter -= 1
+    }
+    // return results if there is no error
     val results = new ListBuffer[searchResultUnit]
-    for (i <- node \\ "result") {
-      results += Tuple3(
-        removeTags(i \\ "title" toString),
-        removeTags(i \\ "summary" toString),
-        removeTags(i \\ "clickurl" toString))
+    if (node != null) {
+      for (i <- node \\ "result") {
+        results += Tuple3(
+          removeTags(i \\ "title" toString),
+          removeTags(i \\ "summary" toString),
+          removeTags(i \\ "clickurl" toString))
+      }
     }
     results
   }
