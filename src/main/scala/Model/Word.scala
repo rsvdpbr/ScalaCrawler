@@ -22,6 +22,8 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
   def * = id ~ parent_id ~ word ~ regexp ~ weight ~ created ~ modified
   // define variables
   var wordTree: WordTree = null
+  // define type
+  type WordTreeUnit = HashMap[String, Any]
 
   // get initial query
   def getInitialQuery(): Query[Word.type] = {
@@ -29,7 +31,7 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
   }
 
   // get word-tree
-  def getWordTree(rootWord: String = "*") = {
+  def setupWordTree(rootWord: String = "*"):Unit = {
     // fetch data from database
     val query = for {
       wp <- getInitialQuery()
@@ -59,8 +61,12 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
     wordTree = root
   }
 
-  class WordTree(_self: HashMap[String, Any] = null) {
-    type WordTreeUnit = HashMap[String, Any]
+  // access to WordTree object
+  def getRootTree(): WordTree = wordTree
+  def getPartialTreeById(id: Int): WordTree = wordTree.getPartialTreeById(id)
+  def getPartialTreeByWord(word: String): WordTree = wordTree.getPartialTreeByWord(word)
+
+  class WordTree(_self: WordTreeUnit = null) {
     val self = if (_self != null) { _self } else { HashMap("id" -> 0, "word" -> "ROOT") }
     val children = new ListBuffer[(WordTree, ListBuffer[Int])]
 
@@ -103,6 +109,29 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
         string += "\n" + "-" * (depth + 1) * 2 + "> " + child._1.toString(depth + 1)
       })
       return string
+    }
+
+    /**
+     * search partial tree by id or word
+     */
+    def getPartialTreeById(id: Int): WordTree = {
+      if (self("id") == id) return this
+      children.foreach(child => {
+        if (child._1.self("id") == id) return child._1
+        else if (child._2.contains(id)) return child._1.getPartialTreeById(id)
+      })
+      return null
+    }
+    def getPartialTreeByWord(word: String): WordTree = {
+      if (self("word") == word) return this
+      children.foreach(child => {
+        if (child._1.self("word") == word) return child._1
+        else {
+          val tmp = child._1.getPartialTreeByWord(word)
+          if (tmp != null) return tmp
+        }
+      })
+      return null
     }
 
   }
