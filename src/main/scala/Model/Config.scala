@@ -1,10 +1,10 @@
 package app.crawler.Model
 
 import org.scalaquery.ql._
-import org.scalaquery.ql.basic.BasicDriver.Implicit._
+import org.scalaquery.ql.extended.MySQLDriver.Implicit._
 import org.scalaquery.simple.StaticQuery._
 import org.scalaquery.session.Database.threadLocalSession
-import basic.{ BasicTable => Table }
+import org.scalaquery.ql.extended.{ ExtendedTable => Table }
 
 object Config extends Table[(Int, String, String, String, Option[String])]("configs") {
 
@@ -20,22 +20,20 @@ object Config extends Table[(Int, String, String, String, Option[String])]("conf
 
   // changeSnetting
   def changeSetting(name: String): Unit = { useSet = name }
-  // get where query regarding set_name
-  def getSettingQuery(): String = {
+
+  // get initial query regarding set_name
+  def getInitialQuery(): Query[Config.type] = {
     return useSet match {
-      case null => "1 = 1"
-      case _: String => "`set_name` = '" + useSet + "'"
+      case null => this
+      case _: String => this.where(_.set_name === useSet)
     }
   }
 
-  // get config value
+  // get config value by key
   def getByKey(key: String): String = {
-    val result = AppModel.execute.withSession {
-      queryNA[(String)](
-		"""SELECT `value` FROM `configs` WHERE `key` = '""" + key + """' AND """ + getSettingQuery()
-	  ).list
-    }
-    result(0)
+    val query = getInitialQuery.where(_.key === key) map { config => config.value }
+    val result = AppModel.execute.withSession { query.first }
+	return result
   }
 
 }
