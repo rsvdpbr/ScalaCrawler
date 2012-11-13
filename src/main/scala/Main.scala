@@ -1,143 +1,120 @@
 package app.crawler
 
-import java.io.StringReader
-import java.net.URLEncoder
 import scala.math._
-import scala.xml.{ NodeSeq, Elem, Node, Text }
-import scala.xml.parsing.NoBindingFactoryAdapter
+import scala.xml.Node
 import scala.collection.mutable.{ ListBuffer, HashMap }
-import scala.util.control.Breaks
-import dispatch._
-import nu.validator.htmlparser.sax.HtmlParser
-import nu.validator.htmlparser.common.XmlViolationPolicy
-import org.xml.sax.InputSource
+import scala.util.control.Breaks._
 
-import org.scalaquery.session.Database
-import org.scalaquery.session.Database.threadLocalSession
+import app.crawler.Controller.{
+  ConnectionController => Connection,
+  ResourceController => Resource
+}
+import app.crawler.Model.{ Config, Word }
 
 /**
  * Main object
  */
 object Main extends App {
 
-  // search words
-  val searchWords = HashMap(
-    """機械学習""" -> ListBuffer(
-      """(機械学習|(m|M)achine (l|L)earning)""",
-      """(入門|(t|T)utorial)""",
-      """(文系|分かる)""",
-      """(プログラ(ム|ミング)|(p|P)rogram(ing)?)""",
-      """(自然言語)""",
-      """(教師)""",
-      """(l|L)isp""",
-      """(c|C)lojure""",
-      """(p|P)ython"""),
-    """(l|L)isp""" -> ListBuffer(
-      """(入門|(t|T)utorial)""",
-      """(S式|S ?(e|E)xpression)""",
-      """(データベース|(d|D)ata(b|B)ase)""",
-      """(人工知能|AI)""",
-      """(末尾再帰|(t|T)ail (r|R)ecursion)""",
-      """(パース|解析|解釈|parse)""",
-      """(自然言語)""",
-      """(サンプル|(s|S)ample)""",
-      """(機械学習|(m|M)achine (l|L)earning)"""),
-    """(c|C)lojure""" -> ListBuffer(
-      """(入門)""",
-      """(再帰|recursive)""",
-      """(末尾再帰|(t|T)ail (r|R)ecursion)""",
-      """(DSL|(d|D)omain( |-)?(s|S)pecific (l|L)anguage|ドメイン固有言語)""",
-      """(XML|Xml|xml)""",
-      """(パース|解析|解釈|parse)""",
-      """(自然言語)""",
-      """(機械学習|(m|M)achine (l|L)earning)"""))
-  // the word to call yahoo search api with
-  val startWords = "機械学習"
-  // step
-  var step = 2000
-  // filtering regular expression for a tag
-  val aRegExp = """^https?://.*$"""
-  val aRegExpExclude = """^(javascript:|mailto:|#).*$"""
-
-  // list for caching url
-  val urlCache = new ListBuffer[String]
-  // queque for url
-  var queueCounter = 0
-  val targetQueue = new ListBuffer[String]
   // list for data
   type Data = (Int, String, String, Node, Double) // (ID, URL, Title, HtmlNode, Point)
   val dataList = new ListBuffer[Data]
-  // application id of yahoo apis
-  val apiId = "1lrHQU.xg66Lo7X6gX8LGae3czjpWQlO90e5acikqxEUQDnsrtMlILwHWDXHsPr0jAE-"
 
+  def testWord(): Unit = {
+    Word.setupWordTree()
+    println(Word.getRootTree.dump)
+    println(Word.getPartialTreeById(15))
+    println(Word.getPartialTreeByWord("XML"))
+    Word.getChildrenTreeById(0).foreach(n => println(n.getExpression + " : " + n))
+  }
+  def testMainLoop(): Unit = {
+    Word.setupWordTree()
+    var url = "http://d.hatena.ne.jp/tailisland/20120808/1344428525"
+    url = "http://d.hatena.ne.jp/naokirin/20111211/1323493110"
+	url = "http://e-arrows.sakura.ne.jp/assets_c/2010/12/l5-countdown-166.html"
+    for (
+      url <- List(
+        "http://www4.atwiki.jp/emaxser/pages/21.html",
+        "http://www4.atwiki.jp/emaxser/pages/19.html",
+        "http://valvallow.blogspot.com/2010/09/fib.html",
+        "http://valvallow.blogspot.com/2010/05/tss-beglis-box-all-evlis.html",
+        "http://books.shoeisha.co.jp/book/b101671.html",
+        "http://ypsilonbox.blogspot.com/2011/06/clojure-memoize.html",
+        "http://d.hatena.ne.jp/uehaj/20100904/1283553508",
+        "http://e-arrows.sakura.ne.jp/2010/08/is-lisp-really-has-too-many-parenthesis.html",
+        "http://cx4a.blogspot.com/2011/09/clojure-13.html",
+        "http://valvallow.blogspot.com/2010/03/clojure-2.html",
+        "http://valvallow.blogspot.com/2010/03/blog-post_12.html",
+        "http://valvallow.blogspot.com/2010/02/google-app-engine-clojure.html",
+        "http://hiroftp.blogspot.com/2010/05/clojure2-3.html",
+        "http://sassylog.blogspot.com/2010/03/androidandroidweb.html",
+        "http://ratememo.blog17.fc2.com/blog-category-73.html",
+        "http://e-arrows.sakura.ne.jp/",
+        "http://e-arrows.sakura.ne.jp/2010/08/is-lisp-really-has-too-many-parenthesis.html#comments",
+        "http://e-arrows.sakura.ne.jp/2010/08/is-lisp-really-has-too-many-parenthesis.html#trackbacks",
+        "http://e-arrows.sakura.ne.jp/lisp/",
+        "http://e-arrows.sakura.ne.jp/2010/09/super-read-macro.html")
+    ) {
+	  println
+	  println
+	  println(url)
+      val node = Resource.htmlToNode(Connection.getHtml(url))
+      println(Resource.evaluateText(node))
+    }
+  }
   /**
    * main function
    */
   def main(): Unit = {
-    // set urls
-    searchWord(startWords).foreach(n => {
-      urlCache += n._3
-      targetQueue += n._3
-    })
-    // main while loop
-    val mycontinue = new Breaks()
-    import mycontinue.{ break => continue, breakable => continuable }
+    return basicSearch
+  }
+  def basicSearch(): Unit = {
+    // set initial urls with yahoo search api
+    Connection.initSearch()
+    // set word tree for evaluating point
+    Word.setupWordTree()
+    // main while loopx
+    var queueCounter = 0
+    var step = Config.getByKey("search-step-number").toInt
     while (queueCounter < step) {
-      continuable {
+      breakable {
         // get next url from targetQueue
-        val target: String = try {
-          targetQueue(queueCounter)
-        } catch {
-          case e => {
-            println("\n[END OF QUEUE] " + e.toString)
-            queueCounter = step
-            continue
-            null
-          }
+        val target = Connection.getUrlFromTargetQueueById(queueCounter)
+        if (target == null) {
+          queueCounter = step
+          break
         }
         // get html data from url
         println("[" + queueCounter + "] " + target)
-        val node: Node = try {
-          getHtmlNode(target)
-        } catch {
-          case e => {
-            println("[ERROR] " + e.toString.split("\n")(0))
-            step += 1
-            continue
-            null
-          }
+        val node = Resource.htmlToNode(Connection.getHtml(target))
+        if (node == null) {
+          step += 1
+          break
         }
         // print page title
-        val title: String = try {
-          val original = (node \\ "title")(0) toString ()
-          removeTags(original)
-        } catch {
-          case e => "[ERROR] Not fond title tag"
-        }
+        val title = Resource.getPageTitle(node)
         println("  -> title : " + title)
         // get point and show
-        val point = getPoint(node.toString)
-        dataList += Tuple5(dataList.length, target, title, node, point)
+        val eval = Resource.evaluateText(node)
+        val point = if (eval.size > 0) {
+          (for (i <- eval) yield i._2("point").asInstanceOf[Double]).reduce(_ + _)
+        } else {
+          0
+        }
         println("  -> point: " + point)
+        dataList += Tuple5(dataList.length, target, title, node, point)
         // get list of a tag from html if point is more than 0
         if (point > 0) {
-          var aTag = {
-            val originalList = node \\ "a"
-            val filtering = originalList filter (_ \ "@href" toString () matches aRegExp)
-            filtering filterNot (_ \ "@href" toString () matches aRegExpExclude)
-          }
-          aTag.foreach(n => {
-            val url = removeHash(n \ "@href" toString ())
-            if (urlCache.contains(url)) {
-              println("    -> Already cached : " + url)
-            } else {
+          Resource.getAllHrefTag(node).foreach(n => {
+            val url = Connection.removeHash(Resource.getHrefTag(n))
+            if (Connection.addUrlIfNotContained(url)) {
               println("    -> " + url)
-              urlCache += url
-              targetQueue += url
+            } else {
+              println("    -> Already cached : " + url)
             }
           })
         }
-      }
+      } // end of breakable scope
       println()
       queueCounter += 1
     }
@@ -150,93 +127,4 @@ object Main extends App {
   }
   main()
 
-  /**
-   * get Html data from Url
-   */
-  def getHtmlNode(target: String, encode: String = "UTF-8"): Node = {
-    val h = new Http
-    val req = url(target) >\ encode
-    val html = h(req as_str)
-    toNode(html)
-  }
-
-  /**
-   * convert String to Node
-   */
-  private def toNode(str: String): Node = {
-    val hp = new HtmlParser
-    hp.setNamePolicy(XmlViolationPolicy.ALLOW)
-    val saxer = new NoBindingFactoryAdapter
-    hp.setContentHandler(saxer)
-    hp.parse(new InputSource(new StringReader(str)))
-    saxer.rootElem
-  }
-
-  /**
-   * remove hash
-   */
-  def removeHash(str: String): String = {
-    """#.?""".r.replaceAllIn(str, "")
-  }
-
-  /**
-   * remove html tags
-   */
-  def removeTags(str: String): String = {
-    """<.+?>""".r.replaceAllIn(str, "")
-  }
-
-  /**
-   * get point from text match
-   */
-  def getPoint(text: String): Double = {
-    val pointList = for ((root, words) <- searchWords; w <- words) yield {
-      val rootLength = root.r.findAllIn(text).toList.length
-      val matchLength = w.r.findAllIn(text).toList.length
-      if (matchLength * rootLength > 0) 1 else 0
-    }
-    pointList.reduce((a, b) => a + b)
-  }
-
-  /**
-   * search about words with yahoo api
-   */
-  type searchResultUnit = (String, String, String) // (Title, Summary, URL)
-  def searchWord(word: String, page: Int = 1): ListBuffer[searchResultUnit] = {
-    // set variables and import break library
-    val query = URLEncoder.encode(word, "utf-8")
-    val url = "http://search.yahooapis.jp/WebSearchService/V2/webSearch" +
-      "?appid=" + apiId + // apiID
-      "&query=" + query + // 検索文字列
-      "&type=all" + // allだと全クエリを含む検索結果、anyだと一部を含む
-      "&results=20" + // 結果の数。20がマックス
-      "&start=" + (page * 20 + 1) + // 結果の先頭位置
-      "&format=html" // 検索するファイルの種類
-    // request for search result until results returned or 20 requests posted
-    var node: Node = null
-    var counter = 20;
-    while (counter > 0) {
-      try {
-        node = getHtmlNode(url)
-        counter = 0
-      } catch {
-        case e => {
-          println("connection error: " + e.toString)
-        }
-      }
-      counter -= 1
-    }
-    // return results if there is no error
-    val results = new ListBuffer[searchResultUnit]
-    if (node != null) {
-      for (i <- node \\ "result") {
-        results += Tuple3(
-          removeTags(i \\ "title" toString),
-          removeTags(i \\ "summary" toString),
-          removeTags(i \\ "clickurl" toString))
-      }
-    }
-    results
-  }
 }
-

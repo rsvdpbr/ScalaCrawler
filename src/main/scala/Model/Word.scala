@@ -9,21 +9,19 @@ import org.scalaquery.ql.extended.{ ExtendedTable => Table }
 import scala.collection.mutable.{ ListBuffer, HashMap }
 import scala.util.control.Breaks._
 
-object Word extends Table[(Int, Int, String, String, Float, Option[String], Option[String])]("words") {
+object Word extends Table[(Int, Int, String, String, Double, Option[String], Option[String])]("words") {
 
   // define fields
   def id = column[Int]("id", O PrimaryKey)
   def parent_id = column[Int]("parent_id")
   def word = column[String]("display_word", O DBType "varchar(256)")
   def regexp = column[String]("word_expression", O DBType "varchar(512)")
-  def weight = column[Float]("weight")
+  def weight = column[Double]("weight")
   def created = column[Option[String]]("created")
   def modified = column[Option[String]]("modified")
   def * = id ~ parent_id ~ word ~ regexp ~ weight ~ created ~ modified
   // define variables
   var wordTree: WordTree = null
-  // define type
-  type WordTreeUnit = HashMap[String, Any]
 
   // get initial query
   def getInitialQuery(): Query[Word.type] = {
@@ -31,7 +29,7 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
   }
 
   // get word-tree
-  def setupWordTree(rootWord: String = "*"):Unit = {
+  def setupWordTree(rootWord: String = "*"): Unit = {
     // fetch data from database
     val query = for {
       wp <- getInitialQuery()
@@ -65,10 +63,24 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
   def getRootTree(): WordTree = wordTree
   def getPartialTreeById(id: Int): WordTree = wordTree.getPartialTreeById(id)
   def getPartialTreeByWord(word: String): WordTree = wordTree.getPartialTreeByWord(word)
+  def getChildrenTreeById(id: Int): List[WordTree] = {
+    val parent = getPartialTreeById(id)
+    return (for (child <- parent.children) yield child._1) toList
+  }
 
-  class WordTree(_self: WordTreeUnit = null) {
+  class WordTree(_self: HashMap[String, Any] = null) {
     val self = if (_self != null) { _self } else { HashMap("id" -> 0, "word" -> "ROOT") }
     val children = new ListBuffer[(WordTree, ListBuffer[Int])]
+    type WordTreeUnit = HashMap[String, Any]
+
+    def getId(): Int = self("id").asInstanceOf[Int]
+    def getWord(): String = self("word").asInstanceOf[String]
+    def getWeight(): Double = if (self.contains("weight")) {
+      self("weight").asInstanceOf[Double]
+    } else { 0.0 }
+    def getExpression(): String = if (self.contains("expression")) {
+      "(?i)" + self("expression").asInstanceOf[String]
+    } else { "" }
 
     def appendChild(_parent: WordTreeUnit, _self: WordTreeUnit): Boolean = {
       if (self == _parent) {
@@ -100,13 +112,13 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
     /**
      * override toString() to show number of children
      */
-    override def toString(): String = this.toString(0)
-    def toString(depth: Int): String = {
-      // var string = "[%03d: %s] has %d children".format(
-      var string = "[%03d: %s] (%s)".format(
-        self("id"), self("word"), if (children.length > 0) { children.length } else { "-" })
+    override def toString(): String = "[%03d: %s] (%s)".format(
+      self("id"), self("word"), if (children.length > 0) { children.length } else { "-" })
+    def dump(): String = this.dump(0)
+    def dump(depth: Int): String = {
+      var string = toString
       children.foreach(child => {
-        string += "\n" + "-" * (depth + 1) * 2 + "> " + child._1.toString(depth + 1)
+        string += "\n" + "-" * (depth + 1) * 2 + "> " + child._1.dump(depth + 1)
       })
       return string
     }
@@ -132,6 +144,54 @@ object Word extends Table[(Int, Int, String, String, Float, Option[String], Opti
         }
       })
       return null
+    }
+    def getParent(): WordTree = {
+      val id = getId
+      var queueHead = 0
+      val queue = new ListBuffer[(WordTree, WordTree)] // (tree, parent-tree)
+      queue += Tuple2(getRootTree, null)
+      while (queueHead < queue.length) { // 幅優先探索
+        val tree = queue(queueHead)._1
+        queueHead += 1
+        if (this == tree) { return queue(queueHead - 1)._2 }
+        tree.children.foreach(
+          child => if (child._2.contains(id) || child._1.getId == id) {
+            queue += Tuple2(child._1, tree)
+          })
+      }
+      return null
+    }
+    def getDepth: Int =  getDepth()
+    def getDepth(root: WordTree = getRootTree): Int = {
+      val id = getId
+      var depth = 0 // nullが来るたびにdepthを一つ増やす
+      var queueHead = 0
+      val queue = ListBuffer(root, null)
+      while (queueHead < queue.length) { // 幅優先探索
+        breakable {
+          val tree = queue(queueHead)
+          queueHead += 1
+          if (tree == null) { // null処理：終了条件の判定とdepthインクリメント
+            if (queue(queueHead - 2) == null) {
+              queueHead = queue.length
+              depth = -1
+            } else {
+              depth += 1
+              queue += null
+            }
+            break
+          }
+          if (id == tree.getId) { // 目的の木を発見
+            queueHead = queue.length
+            break
+          }
+          tree.children.foreach(
+            child => if (child._2.contains(id) || child._1.getId == id) {
+              queue += child._1
+            })
+        } // end of break scope
+      }
+      return depth
     }
 
   }
