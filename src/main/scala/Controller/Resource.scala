@@ -44,7 +44,7 @@ object ResourceController {
       val original = (node \\ "title")(0) toString ()
       removeTags(original)
     } catch {
-      case e => { "[ERROR] Not fond title tag" }
+      case e => { "[ERROR] Not found title tag" }
     }
   }
 
