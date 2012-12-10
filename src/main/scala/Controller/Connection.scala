@@ -10,27 +10,37 @@ import app.crawler.Model.Config
 
 object ConnectionController {
 
-  val urlCache = new ListBuffer[String]
-  val targetQueue = new ListBuffer[(String, Int)]
+  private val urlCache = new ListBuffer[String]
+  private val targetQueue = new ListBuffer[(String, Int)]
+  private var lastErrorMessage = ""
 
-  // add url to member list
+  /**
+   * add url to member list
+   */
   def addUrlCache(url: String): Unit = urlCache += url
   def addTargetQueue(url: String, ttl: Int): Unit = targetQueue += Tuple2(url, ttl)
-  def addUrlIfNotContained(url: String, ttl: Int): Boolean = {
-    return if (!urlCache.contains(url)) {
-      addUrlCache(url)
-      addTargetQueue(url, ttl)
-      true
-    } else {
-      false
-    }
-  }
+
+  /**
+   * getter functions
+   */
   def getUrlFromTargetQueueById(id: Int): String = {
     return if (id < targetQueue.length) { targetQueue(id)._1 } else { null }
   }
   def getTTLFromTargetQueueById(id: Int): Int = {
     return if (id < targetQueue.length) { targetQueue(id)._2 } else { 0 }
   }
+
+  /**
+   * validate and make error message for adding url
+   */
+  def getErrorMessage = lastErrorMessage
+  def validateForAdding(url: String): Boolean = {
+    lastErrorMessage = validateForAddingWithString(url)
+    return lastErrorMessage.isEmpty
+  }
+  def validateForAddingWithString(url: String): String =
+    if (urlCache.contains(url)) "Already cached"
+    else ""
 
   /**
    * get Html data from Url

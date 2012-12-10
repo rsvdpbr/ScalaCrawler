@@ -118,10 +118,12 @@ object Main extends App {
           if (point > 0) {
             Resource.getAllHrefTag(node).foreach(n => {
               val url = Connection.removeHash(Resource.getHrefTag(n))
-              if (Connection.addUrlIfNotContained(url, nextTtl)) {
-                // println("    -> " + url)
+              if (Connection.validateForAdding(url)) {
+                Connection.addUrlCache(url)
+                Connection.addTargetQueue(url, nextTtl)
+                println("    -> " + url)
               } else {
-                // println("    -> Already cached : " + url)
+                println("    -> " + Connection.getErrorMessage + " : " + url)
               }
             })
           }
