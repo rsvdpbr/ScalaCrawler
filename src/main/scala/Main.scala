@@ -31,7 +31,7 @@ object Main extends App {
     Word.setupWordTree()
     var url = "http://d.hatena.ne.jp/tailisland/20120808/1344428525"
     url = "http://d.hatena.ne.jp/naokirin/20111211/1323493110"
-	url = "http://e-arrows.sakura.ne.jp/assets_c/2010/12/l5-countdown-166.html"
+    url = "http://e-arrows.sakura.ne.jp/assets_c/2010/12/l5-countdown-166.html"
     for (
       url <- List(
         "http://www4.atwiki.jp/emaxser/pages/21.html",
@@ -55,9 +55,9 @@ object Main extends App {
         "http://e-arrows.sakura.ne.jp/lisp/",
         "http://e-arrows.sakura.ne.jp/2010/09/super-read-macro.html")
     ) {
-	  println
-	  println
-	  println(url)
+      println
+      println
+      println(url)
       val node = Resource.htmlToNode(Connection.getHtml(url))
       println(Resource.evaluateText(node))
     }
@@ -80,12 +80,13 @@ object Main extends App {
       breakable {
         // get next url from targetQueue
         val target = Connection.getUrlFromTargetQueueById(queueCounter)
-        if (target == null) {
+        val ttl = Connection.getTTLFromTargetQueueById(queueCounter)
+        if (target == null) { // in case that all target-urls have been processed
           queueCounter = step
           break
         }
         // get html data from url
-        println("[" + queueCounter + "] " + target)
+        println("[" + (queueCounter + 1) + "/" + step + "#" + ttl + "] " + target)
         val node = Resource.htmlToNode(Connection.getHtml(target))
         if (node == null) {
           step += 1
@@ -103,17 +104,28 @@ object Main extends App {
         }
         println("  -> point: " + point)
         dataList += Tuple5(dataList.length, target, title, node, point)
-        // get list of a tag from html if point is more than 0
-        if (point > 0) {
-          Resource.getAllHrefTag(node).foreach(n => {
-            val url = Connection.removeHash(Resource.getHrefTag(n))
-            if (Connection.addUrlIfNotContained(url)) {
-              println("    -> " + url)
-            } else {
-              println("    -> Already cached : " + url)
-            }
-          })
-        }
+        // calculate ttl and if not ttl is zero, continue to crawle 
+        if (ttl != 0) { // start of when ttl is zero
+          val nextTtl: Int = if (ttl == -1) {
+            point.toInt
+          } else if (ttl == 1) {
+            val avgPoint = (for (i <- dataList) yield i._5).reduce(_ + _) / dataList.length
+            if (point > avgPoint) { -1 } else { 0 }
+          } else {
+            ttl - 1
+          }
+          // get list of a tag from html if point is more than 0
+          if (point > 0) {
+            Resource.getAllHrefTag(node).foreach(n => {
+              val url = Connection.removeHash(Resource.getHrefTag(n))
+              if (Connection.addUrlIfNotContained(url, nextTtl)) {
+                // println("    -> " + url)
+              } else {
+                // println("    -> Already cached : " + url)
+              }
+            })
+          }
+        } // end of when ttl is zero
       } // end of breakable scope
       println()
       queueCounter += 1

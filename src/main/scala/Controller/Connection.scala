@@ -11,22 +11,25 @@ import app.crawler.Model.Config
 object ConnectionController {
 
   val urlCache = new ListBuffer[String]
-  val targetQueue = new ListBuffer[String]
+  val targetQueue = new ListBuffer[(String, Int)]
 
   // add url to member list
   def addUrlCache(url: String): Unit = urlCache += url
-  def addTargetQueue(url: String): Unit = targetQueue += url
-  def addUrlIfNotContained(url: String): Boolean = {
+  def addTargetQueue(url: String, ttl: Int): Unit = targetQueue += Tuple2(url, ttl)
+  def addUrlIfNotContained(url: String, ttl: Int): Boolean = {
     return if (!urlCache.contains(url)) {
       addUrlCache(url)
-      addTargetQueue(url)
+      addTargetQueue(url, ttl)
       true
     } else {
       false
     }
   }
   def getUrlFromTargetQueueById(id: Int): String = {
-    return if (id < targetQueue.length) { targetQueue(id) } else { null }
+    return if (id < targetQueue.length) { targetQueue(id)._1 } else { null }
+  }
+  def getTTLFromTargetQueueById(id: Int): Int = {
+    return if (id < targetQueue.length) { targetQueue(id)._2 } else { 0 }
   }
 
   /**
@@ -54,10 +57,10 @@ object ConnectionController {
     // init url lists
     urlCache.clear()
     targetQueue.clear()
-    // get urls from yahoo search ai and register to list
+    // get urls from yahoo search api and register to list
     getUrlsBySearchWord().foreach(url => {
       addUrlCache(url)
-      addTargetQueue(url)
+      addTargetQueue(url, -1)
     })
   }
 
