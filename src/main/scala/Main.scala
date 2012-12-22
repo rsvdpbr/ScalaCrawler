@@ -62,6 +62,17 @@ object Main extends App {
       println(Resource.evaluateText(node))
     }
   }
+  def testJson(){
+    import sjson.json.JsonSerialization._
+    import sjson.json.DefaultProtocol._
+    val json = tojson(Map(
+		"Java" -> List("Struts", "Spring"),
+		"Scala" -> List("Lift", "Play")
+	))
+	println(json)
+	val map = fromjson[Map[String, List[String]]](json)
+	println(map)
+  }
   /**
    * main function
    */

@@ -65,7 +65,7 @@ object ResourceController {
   def removeLFRF(str: String): String = """\n|\r""".r.replaceAllIn(str, "")
 
   /**
-   * evaluate point
+   * evaluate point（完全に感覚で。そのうち、TF-IDFとかちゃんと調べてみる）
    */
   def evaluateText(node: Node): HashMap[Word.WordTree, HashMap[String, Any]] = {
     val text = removeTags(node.toString)
